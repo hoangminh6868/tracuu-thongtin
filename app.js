@@ -3,15 +3,13 @@ let danhSachThiSinh = [];
 // 1. Tự động tải và đọc file Excel khi mở trang web
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Đổi tên file fetch khớp chính xác với tên file Excel trên GitHub của bạn
         let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx');
         let arrayBuffer = await response.arrayBuffer();
         
         let workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        let firstSheetName = 'Danh_Sach_Thi_Sinh'; // Lấy đúng tên sheet trong file Excel
+        let firstSheetName = 'Danh_Sach_Thi_Sinh'; 
         let worksheet = workbook.Sheets[firstSheetName] || workbook.Sheets[workbook.SheetNames[0]];
         
-        // Chuyển sheet Excel thành mảng JSON
         danhSachThiSinh = XLSX.utils.sheet_to_json(worksheet);
         console.log("Đã tải dữ liệu thành công:", danhSachThiSinh.length, "bản ghi.");
     } catch (error) {
@@ -26,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (lookupForm && inputCCCD) {
         lookupForm.addEventListener('submit', (e) => {
-            e.preventDefault(); // Ngăn load lại trang
+            e.preventDefault(); 
             let soCanCuoc = inputCCCD.value.trim();
 
             if (!soCanCuoc) {
@@ -34,12 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Tìm kiếm thí sinh dựa vào cột 'SO_CMT' trong file Excel
             let ketQua = danhSachThiSinh.find(item => 
                 String(item['SO_CMT'] || '').trim() === soCanCuoc
             );
 
-            // 3. Hiển thị kết quả ra giao diện
             if (ketQua) {
                 hienThiKetQua(ketQua);
             } else {
@@ -49,13 +45,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hàm hiển thị thông tin thí sinh khi tìm thấy
+// Hàm định dạng ngày sinh từ Excel (hỗ trợ cả dạng chuẩn hoặc chuỗi)
+function dinhDangNgaySinh(ngay) {
+    if (!ngay) return 'N/A';
+    // Nếu là đối tượng ngày tháng hoặc chuỗi ngày
+    let d = new Date(ngay);
+    if (!isNaN(d.getTime())) {
+        let day = String(d.getDate()).padStart(2, '0');
+        let month = String(d.getMonth() + 1).padStart(2, '0');
+        let year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+    }
+    return ngay;
+}
+
+// Hàm hiển thị thông tin thí sinh kèm theo lưu ý
 function hienThiKetQua(data) {
     const container = document.querySelector('#result-container');
     
-    // Lấy thông tin từ các cột trong file Excel
     let hoTen = data['HO_VA_TEN'] || 'N/A';
-    let ngaySinh = data['NGAY_SINH'] || 'N/A';
+    let ngaySinhRaw = data['NGAY_SINH'] || 'N/A';
+    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); // Đã định dạng lại ngày/tháng/năm chuẩn
     let gioiTinh = data['GIOI_TINH'] || 'N/A';
     let soCMT = data['SO_CMT'] || 'N/A';
     let diaChi = data['DIA_CHI_DAY_DU'] || 'N/A';
@@ -84,6 +94,11 @@ function hienThiKetQua(data) {
                         <p><strong>Nội dung sát hạch:</strong> ${noiDungSH}</p>
                         <p><strong>Địa chỉ:</strong> ${diaChi}</p>
                     </div>
+                </div>
+
+                <!-- Phần lưu ý bổ sung -->
+                <div style="margin-top: 16px; padding: 12px 16px; background-color: #fff5f5; border-left: 4px solid #e53e3e; border-radius: 4px; font-size: 0.95rem; color: #742a2a; line-height: 1.6;">
+                    <strong>Lưu ý:</strong> nếu thông tin bị sai, vui lòng nhắn Zalo lại cho Nhóm Trưởng trong giờ hành chính để chỉnh sửa lại trước ngày thi. Nếu không chỉnh sửa, đến ngày thi sẽ không sửa được. Cảm ơn.
                 </div>
             </div>
         `;
