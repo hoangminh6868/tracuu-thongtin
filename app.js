@@ -6,11 +6,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx');
         let arrayBuffer = await response.arrayBuffer();
         
-        let workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true }); // cellDates: true giúp đọc đúng ngày tháng
+        let workbook = XLSX.read(arrayBuffer, { type: 'array' });
         let firstSheetName = 'Danh_Sach_Thi_Sinh'; 
         let worksheet = workbook.Sheets[firstSheetName] || workbook.Sheets[workbook.SheetNames[0]];
         
-        danhSachThiSinh = XLSX.utils.sheet_to_json(worksheet);
+        // Đọc dữ liệu dạng thô (raw: true) để giữ nguyên định dạng ngày tháng/chuỗi từ Excel
+        danhSachThiSinh = XLSX.utils.sheet_to_json(worksheet, { raw: true });
         console.log("Đã tải dữ liệu thành công:", danhSachThiSinh.length, "bản ghi.");
     } catch (error) {
         console.error("Lỗi khi đọc file Excel:", error);
@@ -45,24 +46,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hàm định dạng ngày sinh chuẩn xác, hỗ trợ mọi kiểu dữ liệu từ Excel
+// Hàm lọc và xử lý hiển thị ngày sinh chính xác tuyệt đối
 function dinhDangNgaySinh(ngay) {
     if (!ngay) return 'N/A';
     
-    // Nếu là đối tượng Date chuẩn từ Excel
-    if (ngay instanceof Date && !isNaN(ngay.getTime())) {
-        let day = String(ngay.getDate()).padStart(2, '0');
-        let month = String(ngay.getMonth() + 1).padStart(2, '0');
-        let year = ngay.getFullYear();
-        return `${day}/${month}/${year}`;
+    let strNgay = String(ngay).trim();
+    
+    // Nếu Excel trả về dạng chuỗi chuẩn ISO (VD: "2005-11-11T00:00:00.000Z" hoặc "2005-11-11")
+    if (strNgay.includes('-')) {
+        let parts = strNgay.split('T')[0].split('-');
+        if (parts.length === 3) {
+            let nam = parts[0];
+            let thang = parts[1];
+            let ngayNum = parts[2];
+            if (nam.length === 4) {
+                return `${ngayNum}/${thang}/${nam}`;
+            }
+        }
     }
     
-    // Nếu là chuỗi (ví dụ dạng "2005-11-11" hoặc "11/11/2005")
-    let strNgay = String(ngay).trim();
-    if (strNgay.includes('-')) {
-        let parts = strNgay.split('T')[0].split('-'); // Tách lấy phần YYYY-MM-DD
-        if (parts.length === 3) {
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    // Nếu là chuỗi dạng số serial của Excel (phòng hờ)
+    let num = Number(strNgay);
+    if (!isNaN(num) && num > 10000) {
+        let d = XLSX.SSF.parse_date_code(num);
+        if (d && d.y && d.m && d.d) {
+            let day = String(d.d).padStart(2, '0');
+            let month = String(d.m).padStart(2, '0');
+            let year = d.y;
+            return `${day}/${month}/${year}`;
         }
     }
     
@@ -75,7 +86,7 @@ function hienThiKetQua(data) {
     
     let hoTen = data['HO_VA_TEN'] || 'N/A';
     let ngaySinhRaw = data['NGAY_SINH'] || 'N/A';
-    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); // Hiển thị đúng định dạng DD/MM/YYYY
+    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); 
     let gioiTinh = data['GIOI_TINH'] || 'N/A';
     let soCMT = data['SO_CMT'] || 'N/A';
     let diaChi = data['DIA_CHI_DAY_DU'] || 'N/A';
