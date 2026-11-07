@@ -6,7 +6,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx');
         let arrayBuffer = await response.arrayBuffer();
         
-        let workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        let workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true }); // cellDates: true giúp đọc đúng ngày tháng
         let firstSheetName = 'Danh_Sach_Thi_Sinh'; 
         let worksheet = workbook.Sheets[firstSheetName] || workbook.Sheets[workbook.SheetNames[0]];
         
@@ -45,18 +45,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hàm định dạng ngày sinh từ Excel (hỗ trợ cả dạng chuẩn hoặc chuỗi)
+// Hàm định dạng ngày sinh chuẩn xác, hỗ trợ mọi kiểu dữ liệu từ Excel
 function dinhDangNgaySinh(ngay) {
     if (!ngay) return 'N/A';
-    // Nếu là đối tượng ngày tháng hoặc chuỗi ngày
-    let d = new Date(ngay);
-    if (!isNaN(d.getTime())) {
-        let day = String(d.getDate()).padStart(2, '0');
-        let month = String(d.getMonth() + 1).padStart(2, '0');
-        let year = d.getFullYear();
+    
+    // Nếu là đối tượng Date chuẩn từ Excel
+    if (ngay instanceof Date && !isNaN(ngay.getTime())) {
+        let day = String(ngay.getDate()).padStart(2, '0');
+        let month = String(ngay.getMonth() + 1).padStart(2, '0');
+        let year = ngay.getFullYear();
         return `${day}/${month}/${year}`;
     }
-    return ngay;
+    
+    // Nếu là chuỗi (ví dụ dạng "2005-11-11" hoặc "11/11/2005")
+    let strNgay = String(ngay).trim();
+    if (strNgay.includes('-')) {
+        let parts = strNgay.split('T')[0].split('-'); // Tách lấy phần YYYY-MM-DD
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+    
+    return strNgay;
 }
 
 // Hàm hiển thị thông tin thí sinh kèm theo lưu ý
@@ -65,7 +75,7 @@ function hienThiKetQua(data) {
     
     let hoTen = data['HO_VA_TEN'] || 'N/A';
     let ngaySinhRaw = data['NGAY_SINH'] || 'N/A';
-    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); // Đã định dạng lại ngày/tháng/năm chuẩn
+    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); // Hiển thị đúng định dạng DD/MM/YYYY
     let gioiTinh = data['GIOI_TINH'] || 'N/A';
     let soCMT = data['SO_CMT'] || 'N/A';
     let diaChi = data['DIA_CHI_DAY_DU'] || 'N/A';
