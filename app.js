@@ -3,14 +3,15 @@ let danhSachThiSinh = [];
 // 1. Tự động tải và đọc file Excel khi mở trang web
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx');
+        // Thêm ?v=2 để tránh trình duyệt lưu file Excel cũ
+        let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx?v=2');
         let arrayBuffer = await response.arrayBuffer();
         
         let workbook = XLSX.read(arrayBuffer, { type: 'array' });
         let firstSheetName = 'Danh_Sach_Thi_Sinh'; 
         let worksheet = workbook.Sheets[firstSheetName] || workbook.Sheets[workbook.SheetNames[0]];
         
-        // Đọc dữ liệu dạng thô (raw: true) để giữ nguyên định dạng ngày tháng/chuỗi từ Excel
+        // Đọc dữ liệu thô (raw: true) để lấy đúng số ngày Excel và giữ số 0 ở đầu CCCD
         danhSachThiSinh = XLSX.utils.sheet_to_json(worksheet, { raw: true });
         console.log("Đã tải dữ liệu thành công:", danhSachThiSinh.length, "bản ghi.");
     } catch (error) {
@@ -33,9 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            let ketQua = danhSachThiSinh.find(item => 
-                String(item['SO_CMT'] || '').trim() === soCanCuoc
-            );
+            // So sánh khớp cả trường hợp có hoặc mất số 0 ở đầu
+            let ketQua = danhSachThiSinh.find(item => {
+                let cmt = String(item['SO_CMT'] || '').trim();
+                return cmt === soCanCuoc || cmt.padStart(12, '0') === soCanCuoc.padStart(12, '0');
+            });
 
             if (ketQua) {
                 hienThiKetQua(ketQua);
@@ -46,34 +49,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Hàm lọc và xử lý hiển thị ngày sinh chính xác tuyệt đối
+// Hàm đổi ngày sinh từ số Serial Excel (VD: 34345 -> 11/01/1994)
 function dinhDangNgaySinh(ngay) {
     if (!ngay) return 'N/A';
     
-    let strNgay = String(ngay).trim();
-    
-    // Nếu Excel trả về dạng chuỗi chuẩn ISO (VD: "2005-11-11T00:00:00.000Z" hoặc "2005-11-11")
-    if (strNgay.includes('-')) {
-        let parts = strNgay.split('T')[0].split('-');
-        if (parts.length === 3) {
-            let nam = parts[0];
-            let thang = parts[1];
-            let ngayNum = parts[2];
-            if (nam.length === 4) {
-                return `${ngayNum}/${thang}/${nam}`;
-            }
-        }
+    // Trường hợp 1: Nếu Excel lưu dạng số serial (như 36842, 34345...)
+    let num = Number(ngay);
+    if (!isNaN(num) && num > 1000) {
+        // 25569 là số ngày từ 01/01/1900 đến 01/01/1970
+        let utcDays = Math.floor(num - 25569);
+        let dateInfo = new Date(utcDays * 86400 * 1000);
+        let day = String(dateInfo.getUTCDate()).padStart(2, '0');
+        let month = String(dateInfo.getUTCMonth() + 1).padStart(2, '0');
+        let year = dateInfo.getUTCFullYear();
+        return `${day}/${month}/${year}`;
+    }
+
+    // Trường hợp 2: Nếu là đối tượng Date
+    if (ngay instanceof Date && !isNaN(ngay.getTime())) {
+        let day = String(ngay.getDate()).padStart(2, '0');
+        let month = String(ngay.getMonth() + 1).padStart(2, '0');
+        let year = ngay.getFullYear();
+        return `${day}/${month}/${year}`;
     }
     
-    // Nếu là chuỗi dạng số serial của Excel (phòng hờ)
-    let num = Number(strNgay);
-    if (!isNaN(num) && num > 10000) {
-        let d = XLSX.SSF.parse_date_code(num);
-        if (d && d.y && d.m && d.d) {
-            let day = String(d.d).padStart(2, '0');
-            let month = String(d.m).padStart(2, '0');
-            let year = d.y;
-            return `${day}/${month}/${year}`;
+    // Trường hợp 3: Nếu là chuỗi chữ (VD: "1994-01-11" hoặc "11/01/1994")
+    let strNgay = String(ngay).trim();
+    if (strNgay.includes('-')) {
+        let parts = strNgay.split('T')[0].split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
     }
     
@@ -85,10 +90,9 @@ function hienThiKetQua(data) {
     const container = document.querySelector('#result-container');
     
     let hoTen = data['HO_VA_TEN'] || 'N/A';
-    let ngaySinhRaw = data['NGAY_SINH'] || 'N/A';
-    let ngaySinh = dinhDangNgaySinh(ngaySinhRaw); 
+    let ngaySinh = dinhDangNgaySinh(data['NGAY_SINH']); 
     let gioiTinh = data['GIOI_TINH'] || 'N/A';
-    let soCMT = data['SO_CMT'] || 'N/A';
+    let soCMT = String(data['SO_CMT'] || 'N/A').trim();
     let diaChi = data['DIA_CHI_DAY_DU'] || 'N/A';
     let soBaoDanh = data['SO_BAO_DANH'] || 'N/A';
     let noiDungSH = data['NOI_DUNG_SH'] || 'N/A';
