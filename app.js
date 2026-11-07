@@ -1,0 +1,104 @@
+let danhSachThiSinh = [];
+
+// 1. Tự động tải và đọc file Excel khi mở trang web
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Đổi tên file fetch khớp chính xác với tên file Excel trên GitHub của bạn
+        let response = await fetch('DANH_SACH_THI_SINH  tra cuu.xlsx');
+        let arrayBuffer = await response.arrayBuffer();
+        
+        let workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        let firstSheetName = 'Danh_Sach_Thi_Sinh'; // Lấy đúng tên sheet trong file Excel
+        let worksheet = workbook.Sheets[firstSheetName] || workbook.Sheets[workbook.SheetNames[0]];
+        
+        // Chuyển sheet Excel thành mảng JSON
+        danhSachThiSinh = XLSX.utils.sheet_to_json(worksheet);
+        console.log("Đã tải dữ liệu thành công:", danhSachThiSinh.length, "bản ghi.");
+    } catch (error) {
+        console.error("Lỗi khi đọc file Excel:", error);
+    }
+});
+
+// 2. Xử lý sự kiện khi người dùng bấm Tra cứu
+document.addEventListener('DOMContentLoaded', () => {
+    const lookupForm = document.querySelector('#lookup-form');
+    const inputCCCD = document.querySelector('#identity-number');
+
+    if (lookupForm && inputCCCD) {
+        lookupForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Ngăn load lại trang
+            let soCanCuoc = inputCCCD.value.trim();
+
+            if (!soCanCuoc) {
+                alert("Vui lòng nhập số căn cước công dân!");
+                return;
+            }
+
+            // Tìm kiếm thí sinh dựa vào cột 'SO_CMT' trong file Excel
+            let ketQua = danhSachThiSinh.find(item => 
+                String(item['SO_CMT'] || '').trim() === soCanCuoc
+            );
+
+            // 3. Hiển thị kết quả ra giao diện
+            if (ketQua) {
+                hienThiKetQua(ketQua);
+            } else {
+                hienThiKhongTimThay();
+            }
+        });
+    }
+});
+
+// Hàm hiển thị thông tin thí sinh khi tìm thấy
+function hienThiKetQua(data) {
+    const container = document.querySelector('#result-container');
+    
+    // Lấy thông tin từ các cột trong file Excel
+    let hoTen = data['HO_VA_TEN'] || 'N/A';
+    let ngaySinh = data['NGAY_SINH'] || 'N/A';
+    let gioiTinh = data['GIOI_TINH'] || 'N/A';
+    let soCMT = data['SO_CMT'] || 'N/A';
+    let diaChi = data['DIA_CHI_DAY_DU'] || 'N/A';
+    let soBaoDanh = data['SO_BAO_DANH'] || 'N/A';
+    let noiDungSH = data['NOI_DUNG_SH'] || 'N/A';
+    let maDK = data['MA_DK'] || 'N/A';
+    let tenFileAnh = data['TEN_FILE_ANH'] || '';
+
+    if (container) {
+        container.innerHTML = `
+            <div style="background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #fed7d7;" class="space-y-4">
+                <h3 style="color: #9d1d2b; font-size: 1.25rem; font-weight: bold; border-bottom: 2px solid #fed7d7; padding-bottom: 8px; margin-bottom: 16px;">Thông tin hồ sơ thí sinh</h3>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+                    ${tenFileAnh ? `
+                    <div style="text-align: center; flex: 0 0 130px;">
+                        <img src="images/${tenFileAnh}" alt="Ảnh thí sinh" style="width: 120px; height: 150px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db;" onerror="this.style.display='none'" />
+                    </div>` : ''}
+                    
+                    <div style="flex: 1; min-width: 240px; line-height: 1.8;">
+                        <p><strong>Mã đăng ký:</strong> ${maDK}</p>
+                        <p><strong>Họ và tên:</strong> <span style="color: #1d4ed8; font-weight: 700; font-size: 1.1rem;">${hoTen}</span></p>
+                        <p><strong>Ngày sinh:</strong> ${ngaySinh} &nbsp;|&nbsp; <strong>Giới tính:</strong> ${gioiTinh}</p>
+                        <p><strong>Số CCCD/CMT:</strong> ${soCMT}</p>
+                        <p><strong>Số báo danh:</strong> <span style="color: #c53030; font-weight: bold;">${soBaoDanh}</span></p>
+                        <p><strong>Nội dung sát hạch:</strong> ${noiDungSH}</p>
+                        <p><strong>Địa chỉ:</strong> ${diaChi}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Hàm hiển thị thông báo khi không tìm thấy số CCCD
+function hienThiKhongTimThay() {
+    const container = document.querySelector('#result-container');
+    if (container) {
+        container.innerHTML = `
+            <div style="background: #fff5f5; padding: 20px; border-radius: 12px; border: 1px solid #feb2b2; text-align: center; color: #c53030;">
+                <h3 style="font-weight: bold; margin-bottom: 8px;">Không tìm thấy hồ sơ</h3>
+                <p>Không có thông tin thí sinh nào ứng với số căn cước công dân này. Vui lòng kiểm tra lại!</p>
+            </div>
+        `;
+    }
+}
